@@ -55,7 +55,7 @@ out = optimizeCbModel(model,'max','one');
 [molarX,compMolarMass,av,~,biomassFormula] = calculateFormula(model,metIDs,abs(Stoich));
 testX = abs(sum(Stoich.*compMolarMass));
 
-if abs(testX-1) > 0.1
+if abs(testX-1) > 0.01
     warning('Mass balance not met')
 end
 

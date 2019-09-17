@@ -11,6 +11,10 @@ for m = 1:length(stoich(:,1))
     end
     R2(isnan(R2)) = 0;
     [rsq(m),deg] = max(R2);
-    intStoich(m,:) = feval(polyfit{deg},t);
+    newValue = feval(polyfit{deg},t);
+    if all(y >= 0) && any(newValue < 0)
+        newValue(newValue < 0) = 0;
+    end
+    intStoich(m,:) = newValue;
 end
 end

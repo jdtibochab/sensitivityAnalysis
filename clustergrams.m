@@ -229,7 +229,7 @@ end
 
 s = 0;
 A = cell(1,length(models));
-loadElement = 4; % N4, C1
+loadElement = 1; % N4, C1
 
 metaboliteImportance = {};
 for K = 1:length(models)
@@ -251,7 +251,7 @@ for K = 1:length(models)
             compIDInRxn(i,1) = find(ismember(allComps,compsInRxn{i}));
         end
         stoichInRxn = full(model.S(metIDsInRxn,r));
-%         if length(unique(compsInRxn)) > 1 && ~model.c(r)
+        if length(unique(compsInRxn)) > 1 && ~model.c(r)
             for t = 1:length(Zscore{K}(1,:))+1
                 massFlowInRxn = FBA.(models{K}){t}.x(r)*stoichInRxn.*Num(metIDsInRxn,loadElement);
                 for m = 1:length(metsInRxn)
@@ -261,7 +261,7 @@ for K = 1:length(models)
                     end
                 end
             end
-%         end
+        end
     end
 end
 

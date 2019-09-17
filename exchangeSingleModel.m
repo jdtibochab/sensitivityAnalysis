@@ -4,7 +4,7 @@ function [ExchangeD,DataD] = exchangeSingleModel(model)
         % ExRxnsD = strfind(model.rxnNames,'exchange');
         % IndexD= find(not(cellfun('isempty', ExRxnsD)));
 %        DExRxns = strmatch('EX_',model.rxns); %
-for i = 1:1373
+for i = 1:length(model.mets)
     alp(i) = length(find(model.S(:,i)));
 end
 bet = find(alp==1);

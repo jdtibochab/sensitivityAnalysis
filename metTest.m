@@ -18,7 +18,7 @@ mets = biomassMet;
 for i = 1:length(Stoich(1,:))
     [~,compMolarMass] = calculateFormula(model,findMetIDs(model,mets),abs(Stoich(:,i)));
     testX = abs(sum(Stoich(:,i).*compMolarMass));
-    if abs(testX-1) > 0.1
+    if abs(testX-1) > 0.01
         warning('Initial S matrix does not meet mass balance. Mass balance will be forced upon the resulting matrix.')
     end
 end
