@@ -247,7 +247,7 @@ for g = 1:length(modelFieldNames)
             end
         end
         
-        for i = 1:length(fieldNames)            
+        for i = 1:length(metGroups.all)            
             temp = gCon(:,i);
             x(i,1) = mean(temp(temp~=0));
             stdX(i,1) = std(temp(temp~=0));
@@ -256,8 +256,8 @@ for g = 1:length(modelFieldNames)
             y(i,1) = mean(temp(temp~=0));
             stdY(i,1) = std(temp(temp~=0));
             
-%             temp = gSens(:,i);
-            temp = gCod(:,i);
+            temp = gSens(:,i);
+%             temp = gCod(:,i);
             z(i,1) = mean(temp(temp~=0));
             stdZ(i,1) = std(temp(temp~=0));
         end
@@ -293,12 +293,12 @@ for g = 1:length(modelFieldNames)
         errorbar(y,z,stdZ,stdZ,stdY,stdY,'.');
         text(y,z,fieldNames)
         xlabel('Relative Cost')
-%         ylabel('Relative Sensitivity')
-        ylabel('Codependence')
+        ylabel('Relative Sensitivity')
+%         ylabel('Codependence')
         
         colormap(colorcube)
         
-        subplot(2,length(modelFieldNames),SP+3);
+        subplot(2,length(modelFieldNames),SP+2);
         hold on
         grid on
         box on
@@ -1094,7 +1094,7 @@ end
 
 legend(Models)
 
-%% GP sampling
+%% GP sampling calculation
 modelsPA = {'PA','Pt','HT','PtHT'};
 modelsHT = {'CHO','Yl','Sc'};
 Models = [modelsPA,modelsHT];
@@ -1102,51 +1102,126 @@ Models = [modelsPA,modelsHT];
 load(['BOFsensitivity_',Models{1}])
 A = [length(Models),length(Stoich(1,:))];
 % SIZE = size(samplingResults);
-SIZE = [2 4];
+SIZE = [1 1];
 
 for m = 1:A(1)
     model = [];
     load(['BOFsensitivity_',Models{m}])
-    for i = 1:(length(Stoich(1,:)))
+    models_array{m} = model;
+    for i = 1:length(Stoich(1,:))
         if (m > SIZE(1)) || (i >= SIZE(2) && m == SIZE(1)) % To allow for resuming
             [m i]
+            solution_temp = optimizeCbModel(model);
             bof_id = find(model.c);
+            
+            initial_f = solution_temp.f;
+            model.lb(bof_id) = initial_f*0.9;
+            model.ub(bof_id) = initial_f;
+            
             model.S(findMetIDs(model,mets),bof_id) = -Stoich(:,i);
             [samplingResults_temp, mixedFrac_temp] = gpSampler(model);
-            results{m,i} = samplingResults_temp.points;
+            results = samplingResults_temp.points;
+            save(['samplingResults_',num2str(m),'_',num2str(i),'.mat'],'results');
         end
     end
 end
 
-save('samplingResults.mat','results', '-v7.3');
+%% GP sampling read and analyze
+modelsPA = {'PA','Pt','HT','PtHT'};
+modelsHT = {'CHO','Yl','Sc'};
+Models = [modelsPA,modelsHT];
 
-T = readtable('/home/jt/UCSD/BOFopt/pathways_manual.txt');
-res = [];
+Models = {'PA'};
+
+SIZE = [1 6];
+
+for i = 1:SIZE(1)
+    for j = 1:SIZE(2)
+        results = [];
+        load(['samplingResults_',num2str(i),'_',num2str(j),'.mat'])
+        samplingResults{i,j} = results;
+    end
+end
+
+
+regulation = {};
 for m = 1:length(Models)
-    model = [];
-    regulation = {};
-    load(['BOFsensitivity_',Models{m}])
+    res = [];
+    model = models_array{m};
     for i = 1:length(model.rxns)
-        x0 = samplingResults{m,1}.points(i,:);
-        xf = samplingResults{m,end}.points(i,:);
+        x0 = samplingResults{m,1}(i,:);
+        xf = samplingResults{m,end}(i,:);
         
         x0_mean = mean(x0);
         xf_mean = mean(xf);
         
-        ttest = ttest(x0,xf);
+        t = ttest(x0,xf);
         
-        if ttest && xf_mean>x0_mean
-            res(i,1) = 1;
-        elseif  ttest && xf_mean<x0_mean
-            res(i,1) = -1;
+        if ~isnan(t)
+            if t == 1 && xf_mean>x0_mean
+                res(i,1) = 1;
+            elseif  t == 1 && xf_mean<x0_mean
+                res(i,1) = -1;
+            else
+                res(i,1) = 0;
+            end
         else
             res(i,1) = 0;
         end
     end
+    
     total = length(model.rxns);
     change = length(find(res));
     change/total
     regulation{m} = res;
 end
-x = samplingResults{1,1}.points(1300,:);
-y = samplingResults{1,6}.points(1300,:);
+x = samplingResults{1,1}(1300,:);
+y = samplingResults{1,6}(1300,:);
+
+%%
+subsystems_dict = readtable('/home/jt/UCSD/BOFopt/pathways_manual.txt');
+raw_subsystem_array = table2array(subsystems_dict(:,1));
+new_subsystem_array = table2array(subsystems_dict(:,3));
+subsystems = unique(table2array(subsystems_dict(:,3)));
+
+contributions = {};
+
+for m = 1:length(models_array)
+    contributions{m} = zeros(length(subsystems),3);
+    model = models_array{m};
+    
+    for r = 1:length(model.rxns)
+        
+        rxn_sub = model.subSystems{r};
+        sub_id = strmatch(rxn_sub,raw_subsystem_array,'exact');
+        if sub_id    
+            new_sub = new_subsystem_array{sub_id};
+            new_sub_pos = strmatch(new_sub,subsystems,'exact');
+            
+            if regulation{m}(r) > 0
+                contributions{m}(new_sub_pos,1) = contributions{m}(new_sub_pos,1) + 1;
+                
+            elseif regulation{m}(r) < 0
+                contributions{m}(new_sub_pos,2) = contributions{m}(new_sub_pos,2) + 1;
+            else
+                contributions{m}(new_sub_pos,3) = contributions{m}(new_sub_pos,3) + 1;
+            end
+        end
+    end
+end
+
+X = categorical(Models);
+s_ids = [2,7,8,13,14,15];
+figure
+i = 0;
+for s = s_ids
+    i = i + 1;
+    subplot(2,3,i)
+    Y = [];
+    for m = 1:length(models_array)
+        Y = [Y;contributions{m}(s,:)/sum(contributions{m}(s,:))];
+    end
+    bar(X,Y,'stacked')
+    title(subsystems{s})
+    legend('+','-','0')
+end
