@@ -280,8 +280,13 @@ for g = 1:length(modelFieldNames)
         [surffit2,gof2] = fit(x,z,poly);
         fdataX = feval(surffit2,x);
         
-        gof.rsquare
-        gof2.rsquare
+        gof.rsquare;
+        gof2.rsquare;
+        
+        fitobj2 = fitlm(y,z);
+        rsq = fitobj2.Rsquared.Ordinary;
+        pval = fitobj2.Coefficients.pValue(2);
+        pval
         
         
         SP = SP + 1;
@@ -842,6 +847,10 @@ for i = 1:length(models)
     
     [fitobj,gof] = fit(xdata,ydata,fitEq);
     rsq = gof.rsquare;
+    fitobj2 = fitlm(xdata,ydata);
+    rsq = fitobj2.Rsquared.Ordinary;
+    pval = fitobj2.Coefficients.pValue(2)
+    
 %     fitobj
     
 %     [coeffs,xfit,fdata,compData,finalError] = orthogonalFit(xdata,ydata,fitEq);
@@ -1102,23 +1111,29 @@ Models = [modelsPA,modelsHT];
 load(['BOFsensitivity_',Models{1}])
 A = [length(Models),length(Stoich(1,:))];
 % SIZE = size(samplingResults);
-SIZE = [1 1];
+SIZE = [2 1];
 
 for m = 1:A(1)
+    Stoich = [];
     model = [];
     load(['BOFsensitivity_',Models{m}])
     models_array{m} = model;
     for i = 1:length(Stoich(1,:))
         if (m > SIZE(1)) || (i >= SIZE(2) && m == SIZE(1)) % To allow for resuming
-            [m i]
-            solution_temp = optimizeCbModel(model);
-            bof_id = find(model.c);
             
+            [m i]
+            
+            % Change stoichiometric coefficients
+            bof_id = find(model.c);
+            model.S(findMetIDs(model,mets),bof_id) = -Stoich(:,i);
+            
+            % Initial calculation to constrain sampling
+            solution_temp = optimizeCbModel(model);
             initial_f = solution_temp.f;
             model.lb(bof_id) = initial_f*0.9;
             model.ub(bof_id) = initial_f;
             
-            model.S(findMetIDs(model,mets),bof_id) = -Stoich(:,i);
+            % Sampling
             [samplingResults_temp, mixedFrac_temp] = gpSampler(model);
             results = samplingResults_temp.points;
             save(['samplingResults_',num2str(m),'_',num2str(i),'.mat'],'results');
@@ -1131,11 +1146,11 @@ modelsPA = {'PA','Pt','HT','PtHT'};
 modelsHT = {'CHO','Yl','Sc'};
 Models = [modelsPA,modelsHT];
 
-Models = {'PA'};
-
-SIZE = [1 6];
+SIZE = [5 6];
 
 for i = 1:SIZE(1)
+    load(['BOFsensitivity_',Models{m}],'model')
+    models_array{i} = model;
     for j = 1:SIZE(2)
         results = [];
         load(['samplingResults_',num2str(i),'_',num2str(j),'.mat'])
@@ -1186,7 +1201,9 @@ subsystems = unique(table2array(subsystems_dict(:,3)));
 
 contributions = {};
 
-for m = 1:length(models_array)
+SIZE = size(samplingResults);
+
+for m = 1:SIZE(1)
     contributions{m} = zeros(length(subsystems),3);
     model = models_array{m};
     
@@ -1218,7 +1235,7 @@ for s = s_ids
     i = i + 1;
     subplot(2,3,i)
     Y = [];
-    for m = 1:length(models_array)
+    for m = 1:SIZE(1)
         Y = [Y;contributions{m}(s,:)/sum(contributions{m}(s,:))];
     end
     bar(X,Y,'stacked')
