@@ -50,6 +50,7 @@ substrateMetID = find(model.S(:,substrateRxnID)~=0);
 convFacSubs = numAtomsOfElementInFormula(char(model.metFormulas(substrateMetID)),'C');
 
 %%
+global out
 out = optimizeCbModel(model,'max','one');
 
 [molarX,compMolarMass,av,~,biomassFormula] = calculateFormula(model,metIDs,abs(Stoich));

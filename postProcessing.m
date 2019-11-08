@@ -1111,7 +1111,7 @@ Models = [modelsPA,modelsHT];
 load(['BOFsensitivity_',Models{1}])
 A = [length(Models),length(Stoich(1,:))];
 % SIZE = size(samplingResults);
-SIZE = [2 1];
+SIZE = [6 2];
 
 for m = 1:A(1)
     Stoich = [];
@@ -1122,6 +1122,7 @@ for m = 1:A(1)
         if (m > SIZE(1)) || (i >= SIZE(2) && m == SIZE(1)) % To allow for resuming
             
             [m i]
+            
             
             % Change stoichiometric coefficients
             bof_id = find(model.c);
@@ -1146,10 +1147,10 @@ modelsPA = {'PA','Pt','HT','PtHT'};
 modelsHT = {'CHO','Yl','Sc'};
 Models = [modelsPA,modelsHT];
 
-SIZE = [5 6];
+SIZE = [7 6];
 
 for i = 1:SIZE(1)
-    load(['BOFsensitivity_',Models{m}],'model')
+    load(['BOFsensitivity_',Models{i}],'model')
     models_array{i} = model;
     for j = 1:SIZE(2)
         results = [];
@@ -1206,18 +1207,17 @@ SIZE = size(samplingResults);
 for m = 1:SIZE(1)
     contributions{m} = zeros(length(subsystems),3);
     model = models_array{m};
-    
     for r = 1:length(model.rxns)
-        
         rxn_sub = model.subSystems{r};
+        rxn_sub = strrep(rxn_sub,'S_','');
+        rxn_sub = strrep(rxn_sub,'_',' ');
+        rxn_sub = strrep(rxn_sub,'__',' ');
         sub_id = strmatch(rxn_sub,raw_subsystem_array,'exact');
-        if sub_id    
+        if sub_id
             new_sub = new_subsystem_array{sub_id};
             new_sub_pos = strmatch(new_sub,subsystems,'exact');
-            
             if regulation{m}(r) > 0
                 contributions{m}(new_sub_pos,1) = contributions{m}(new_sub_pos,1) + 1;
-                
             elseif regulation{m}(r) < 0
                 contributions{m}(new_sub_pos,2) = contributions{m}(new_sub_pos,2) + 1;
             else
@@ -1227,6 +1227,7 @@ for m = 1:SIZE(1)
     end
 end
 
+%%
 X = categorical(Models);
 s_ids = [2,7,8,13,14,15];
 figure
@@ -1238,7 +1239,12 @@ for s = s_ids
     for m = 1:SIZE(1)
         Y = [Y;contributions{m}(s,:)/sum(contributions{m}(s,:))];
     end
-    bar(X,Y,'stacked')
+    Y(isnan(Y)) = 0;
+    bar(Y,0.5,'stacked','EdgeColor','w')
+    box off
+    
+    subsystems{s}
+    Y
+    
     title(subsystems{s})
-    legend('+','-','0')
 end

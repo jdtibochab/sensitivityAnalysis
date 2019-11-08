@@ -453,3 +453,25 @@ end
 
 save('compartmentHeatmaps.mat')
 colorbar
+
+%%  Save all models
+string  = 'CHO';
+Models = modelsCHO;
+for K = 1:length(Models)
+    for m = 1:length(Models)
+        model = Models{m};
+        save(['/home/jt/UCSD/BOFopt/sensitivityAnalysis/all_models/Model_',string,'_',num2str(m)],'model')
+    end
+end
+
+
+%%
+models = {'PA','HT','Pt','PtHT','CHO','Sc','Yl'};
+for M = 1:length(models)
+    for K = 1:6
+        load(['Model_',models{M},'_',num2str(K)]);
+        %writeCbModel(model, 'format','sbml','fileName',['Model_',models{M},'_',num2str(K)])
+        [a,b] = exchangeSingleModel(model);
+        writetable(a,['constraints_Model_',models{M},'.xls'],'Sheet',['Sheet',num2str(K)]);
+    end
+end
