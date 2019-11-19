@@ -1174,9 +1174,9 @@ for m = 1:length(Models)
         t = ttest(x0,xf);
         
         if ~isnan(t)
-            if t == 1 && xf_mean>x0_mean
+            if ttest(x0,xf,'tail','right')
                 res(i,1) = 1;
-            elseif  t == 1 && xf_mean<x0_mean
+            elseif ttest(x0,xf,'tail','left')
                 res(i,1) = -1;
             else
                 res(i,1) = 0;
@@ -1248,3 +1248,45 @@ for s = s_ids
     
     title(subsystems{s})
 end
+
+%% Get amino acid abundances from fasta
+prot_files = dir('*Prot*');
+prot_files = {prot_files.name};
+
+figure
+histidine_abundance = [];
+histidine_rank = [];
+for i = 1:length(prot_files)
+     
+    prot_file = prot_files{i};
+    protData = fastaread(prot_file);
+    AAseq = [protData.Sequence];
+    L = length(AAseq(:));
+    totalCount = aacount2(AAseq(:));
+    AAfieldNames = fieldnames(totalCount);
+    for j = 1:length(AAfieldNames)
+        relativeCount(j) = totalCount.(AAfieldNames{j})/L;
+    end
+
+    [relativeCount_sorted,I] = sort(relativeCount);
+    
+    subplot(2,3,i)
+    bar(relativeCount_sorted)
+    set(gca, 'XTickLabel',AAfieldNames(I), 'XTick',1:numel(AAfieldNames(I)))
+
+    histidine_rank(i) = strmatch('H',AAfieldNames(I));
+    histidine_abundance(i) = totalCount.H/L;
+    arginine_abundance(i) = totalCount.R/L;
+end
+
+test = histidine_abundance
+
+x = mean(test);
+s = std(test);
+n = length(test);
+
+Q1_t = norminv(0.25,n-1);
+Q3_t = tinv(0.75,n-1);
+
+Q1 = Q1_t* s/sqrt(n) + x
+Q3 = Q3_t* s/sqrt(n) + x
