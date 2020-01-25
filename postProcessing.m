@@ -1163,38 +1163,50 @@ end
 regulation = {};
 for m = 1:length(Models)
     res = [];
+    fold = [];
+    pval = [];
     model = models_array{m};
     for i = 1:length(model.rxns)
-        x0 = samplingResults{m,1}(i,:);
-        xf = samplingResults{m,end}(i,:);
+        x0 = abs(samplingResults{m,1}(i,:));
+        xf = abs(samplingResults{m,end}(i,:));
         
         x0_mean = mean(x0);
         xf_mean = mean(xf);
         
-        t = ttest(x0,xf);
+        [t,p] = ttest(x0,xf);
         
-        if ~isnan(t)
-            if ttest(x0,xf,'tail','right')
-                res(i,1) = 1;
-            elseif ttest(x0,xf,'tail','left')
-                res(i,1) = -1;
+        fold(i,1) = xf_mean/x0_mean;        
+        if ~isnan(t) && t
+            if xf_mean > x0_mean
+                [h,p] = ttest(xf,x0,'tail','right');
+                if h
+                    res(i,1) = 1;
+                    pval(i,1) = p;
+                end
+            elseif xf_mean < x0_mean
+                [h,p] = ttest(xf,x0,'tail','left');
+                if h
+                    res(i,1) = -1;
+                    pval(i,1) = p;
+                end
             else
-                res(i,1) = 0;
+                warning('Means different but are the same value?')
             end
         else
             res(i,1) = 0;
+            pval(i,1) = p;
         end
     end
     
     total = length(model.rxns);
     change = length(find(res));
     change/total
-    regulation{m} = res;
+    regulation{m} = [res,fold,pval];
 end
-x = samplingResults{1,1}(1300,:);
-y = samplingResults{1,6}(1300,:);
+% x = samplingResults{1,1}(1300,:);
+% y = samplingResults{1,6}(1300,:);
 
-%%
+%% Organize regulation data
 subsystems_dict = readtable('/home/jt/UCSD/BOFopt/pathways_manual.txt');
 raw_subsystem_array = table2array(subsystems_dict(:,1));
 new_subsystem_array = table2array(subsystems_dict(:,3));
@@ -1203,7 +1215,8 @@ subsystems = unique(table2array(subsystems_dict(:,3)));
 contributions = {};
 
 SIZE = size(samplingResults);
-
+idx = [];
+reaction_subsystem = [];
 for m = 1:SIZE(1)
     contributions{m} = zeros(length(subsystems),3);
     model = models_array{m};
@@ -1213,21 +1226,27 @@ for m = 1:SIZE(1)
         rxn_sub = strrep(rxn_sub,'_',' ');
         rxn_sub = strrep(rxn_sub,'__',' ');
         sub_id = strmatch(rxn_sub,raw_subsystem_array,'exact');
+        reaction_subsystem{m}{r,1} = '';
         if sub_id
             new_sub = new_subsystem_array{sub_id};
             new_sub_pos = strmatch(new_sub,subsystems,'exact');
-            if regulation{m}(r) > 0
+            reaction_subsystem{m}{r,1} = new_sub;
+            if regulation{m}(r,1) > 0
                 contributions{m}(new_sub_pos,1) = contributions{m}(new_sub_pos,1) + 1;
-            elseif regulation{m}(r) < 0
+                if new_sub_pos == 14
+                    idx(end+1) = r;
+                end
+            elseif regulation{m}(r,1) < 0
                 contributions{m}(new_sub_pos,2) = contributions{m}(new_sub_pos,2) + 1;
             else
                 contributions{m}(new_sub_pos,3) = contributions{m}(new_sub_pos,3) + 1;
             end
         end
+        
     end
 end
 
-%%
+%% Visualize regulation
 X = categorical(Models);
 s_ids = [2,7,8,13,14,15];
 figure
@@ -1242,13 +1261,22 @@ for s = s_ids
     Y(isnan(Y)) = 0;
     bar(Y,0.5,'stacked','EdgeColor','w')
     box off
-    
-    subsystems{s}
-    Y
-    
+%     
+%     subsystems{s}
+%     Y
+%     
     title(subsystems{s})
 end
 
+%% Write regulation file
+columns = {'rxn_id','subsystem','genes','reg','fold_change','p_value','rxn_formula'};
+for i = 1:SIZE(1)
+    model = [];
+    load(['BOFsensitivity_',Models{i}],'model')
+    info = [model.rxns, reaction_subsystem{i},model.grRules, num2cell(regulation{i}),printRxnFormula(model,'printFlag',0)];
+    tables{i} = cell2table(info,'VariableNames',columns);
+    writetable(tables{i},'regulation_supp_table.xls','Sheet',Models{i})
+end
 %% Get amino acid abundances from fasta
 prot_files = dir('*Prot*');
 prot_files = {prot_files.name};
@@ -1290,3 +1318,5 @@ Q3_t = tinv(0.75,n-1);
 
 Q1 = Q1_t* s/sqrt(n) + x
 Q3 = Q3_t* s/sqrt(n) + x
+
+
